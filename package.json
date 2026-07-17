@@ -1,0 +1,19 @@
+{
+  "name": "oncall-investigator",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "agents": "^0.0.65"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "wrangler": "^4.112.0"
+  }
+}

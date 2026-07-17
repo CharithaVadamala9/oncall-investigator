@@ -1,0 +1,37 @@
+name = "oncall-investigator"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+CF_ACCOUNT_ID = "e7fe6bdee08b8ce28ec59369013786e3"
+
+[[durable_objects.bindings]]
+name = "TRAFFIC_GENERATOR"
+class_name = "TrafficGenerator"
+
+[[durable_objects.bindings]]
+name = "INVESTIGATOR"
+class_name = "Investigator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TrafficGenerator"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Investigator"]
+
+[[d1_databases]]
+binding = "oncall_investigator_db"
+database_name = "oncall-investigator-db"
+database_id = "2dc12302-7408-436c-b4ab-9620d8de434e"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "c1636ea9af684926866f859a73c281ae"
+
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "oncall_metrics"
