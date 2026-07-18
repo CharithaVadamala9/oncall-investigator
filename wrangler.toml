@@ -6,6 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 CF_ACCOUNT_ID = "e7fe6bdee08b8ce28ec59369013786e3"
 
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/agents/*", "/admin/*", "/debug/*"]
+
 [[durable_objects.bindings]]
 name = "TRAFFIC_GENERATOR"
 class_name = "TrafficGenerator"
