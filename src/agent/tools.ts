@@ -19,32 +19,35 @@ export const TOOL_SCHEMAS: Anthropic.Tool[] = [
   {
     name: "get_logs",
     description:
-      "Get aggregated log counts and a capped sample of raw log rows for a service within a time range. Counts are grouped by level/status/error type over the full range; samples are capped and prioritize error rows.",
+      "Get aggregated log counts and a capped sample of raw log rows for a service within a recent time range. Counts are grouped by level/status/error type over the full range; samples are capped and prioritize error rows.",
     input_schema: {
       type: "object",
       properties: {
         service: { type: "string", description: "Service name, e.g. 'payment-service'" },
-        since: { type: "integer", description: "Start of range, unix ms" },
-        until: { type: "integer", description: "End of range, unix ms" },
+        since_minutes_ago: { type: "integer", description: "Start of range, minutes before now" },
+        until_minutes_ago: {
+          type: "integer",
+          description: "End of range, minutes before now (default 0 = now)",
+        },
         level: { type: "string", enum: ["info", "error"], description: "Optional level filter" },
         limit: {
           type: "integer",
           description: `Max sample rows to return (default ${DEFAULT_LOG_LIMIT}, capped at ${MAX_LOG_LIMIT})`,
         },
       },
-      required: ["service", "since", "until"],
+      required: ["service", "since_minutes_ago"],
     },
   },
   {
     name: "get_deploys",
-    description: "Get the deploy timeline for a service since a given time.",
+    description: "Get the deploy timeline for a service since a recent point in time.",
     input_schema: {
       type: "object",
       properties: {
         service: { type: "string" },
-        since: { type: "integer", description: "unix ms" },
+        since_minutes_ago: { type: "integer", description: "How far back to look, in minutes" },
       },
-      required: ["service", "since"],
+      required: ["service", "since_minutes_ago"],
     },
   },
   {
@@ -90,21 +93,38 @@ async function listServicesTool(env: Env): Promise<{ services: string[] }> {
   return { services };
 }
 
+function minutesAgoToTimestamp(minutesAgo: number): number {
+  return Date.now() - minutesAgo * 60_000;
+}
+
 interface GetLogsInput {
   service?: unknown;
-  since?: unknown;
-  until?: unknown;
+  since_minutes_ago?: unknown;
+  until_minutes_ago?: unknown;
   level?: unknown;
   limit?: unknown;
 }
 
 async function getLogsTool(env: Env, input: GetLogsInput) {
-  const { service, since, until, level, limit } = input;
+  const {
+    service,
+    since_minutes_ago: sinceMinutesAgo,
+    until_minutes_ago: untilMinutesAgo,
+    level,
+    limit,
+  } = input;
 
   if (!isNonEmptyString(service)) return { error: "service must be a non-empty string" };
-  if (!isFiniteNumber(since)) return { error: "since must be a unix-ms number" };
-  if (!isFiniteNumber(until)) return { error: "until must be a unix-ms number" };
-  if (since >= until) return { error: "since must be before until" };
+  if (!isFiniteNumber(sinceMinutesAgo) || sinceMinutesAgo < 0) {
+    return { error: "since_minutes_ago must be a non-negative number" };
+  }
+  const untilMinutes = untilMinutesAgo === undefined ? 0 : untilMinutesAgo;
+  if (!isFiniteNumber(untilMinutes) || untilMinutes < 0) {
+    return { error: "until_minutes_ago must be a non-negative number" };
+  }
+  if (sinceMinutesAgo <= untilMinutes) {
+    return { error: "since_minutes_ago must be greater than until_minutes_ago (since is further in the past)" };
+  }
   if (level !== undefined && level !== "info" && level !== "error") {
     return { error: "level must be 'info' or 'error'" };
   }
@@ -114,8 +134,8 @@ async function getLogsTool(env: Env, input: GetLogsInput) {
 
   return getLogs(env.oncall_investigator_db, {
     service,
-    since,
-    until,
+    since: minutesAgoToTimestamp(sinceMinutesAgo),
+    until: minutesAgoToTimestamp(untilMinutes),
     level: level as "info" | "error" | undefined,
     limit: cappedLimit,
   });
@@ -123,15 +143,17 @@ async function getLogsTool(env: Env, input: GetLogsInput) {
 
 interface GetDeploysInput {
   service?: unknown;
-  since?: unknown;
+  since_minutes_ago?: unknown;
 }
 
 async function getDeploysTool(env: Env, input: GetDeploysInput) {
-  const { service, since } = input;
+  const { service, since_minutes_ago: sinceMinutesAgo } = input;
   if (!isNonEmptyString(service)) return { error: "service must be a non-empty string" };
-  if (!isFiniteNumber(since)) return { error: "since must be a unix-ms number" };
+  if (!isFiniteNumber(sinceMinutesAgo) || sinceMinutesAgo < 0) {
+    return { error: "since_minutes_ago must be a non-negative number" };
+  }
 
-  const deploys = await getDeploys(env.KV, service, since);
+  const deploys = await getDeploys(env.KV, service, minutesAgoToTimestamp(sinceMinutesAgo));
   return { deploys };
 }
 

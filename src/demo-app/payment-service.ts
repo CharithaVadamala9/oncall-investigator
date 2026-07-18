@@ -34,7 +34,7 @@ export async function handle(env: Env, traceId: string): Promise<HopResult> {
   const failed = Math.random() < errorRate;
 
   const result: HopResult = failed
-    ? { statusCode: 500, latencyMs: Date.now() - start, level: "error", errorType: "upstream_5xx" }
+    ? { statusCode: 500, latencyMs: Date.now() - start, level: "error", errorType: "internal_error" }
     : { statusCode: 200, latencyMs: Date.now() - start, level: "info" };
 
   await insertLog(env.oncall_investigator_db, {
