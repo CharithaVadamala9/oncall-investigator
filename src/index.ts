@@ -1,5 +1,6 @@
 import { getAgentByName, routeAgentRequest } from "agents";
 import { Investigator } from "./agent/investigator";
+import { SummaryAgent } from "./agent/summary-agent";
 import { executeTool } from "./agent/tools";
 import { runChainOnce } from "./demo-app/chain";
 import { seedAuthIncident } from "./demo-app/seed-auth-incident";
@@ -8,8 +9,9 @@ import { seedCheckoutIncident } from "./demo-app/seed-checkout-incident";
 import { seedIncident } from "./demo-app/seed-incident";
 import { seedOutage } from "./demo-app/seed-outage";
 import { TrafficGenerator } from "./demo-app/traffic-generator";
+import { getRecentSummaries } from "./storage/summaries";
 
-export { Investigator, TrafficGenerator };
+export { Investigator, SummaryAgent, TrafficGenerator };
 
 // Manual trigger kept alongside the scheduled traffic-generator for one-off runs.
 export default {
@@ -57,6 +59,25 @@ export default {
     if (request.method === "POST" && url.pathname === "/admin/stop-traffic") {
       const stub = await getAgentByName(env.TRAFFIC_GENERATOR, "singleton");
       return Response.json(await stub.stopTraffic());
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/start-summaries") {
+      const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
+      return Response.json(await stub.startSummaries());
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/stop-summaries") {
+      const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
+      return Response.json(await stub.stopSummaries());
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/generate-summary") {
+      const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
+      return Response.json(await stub.generateNow());
+    }
+
+    if (url.pathname === "/admin/summaries") {
+      return Response.json(await getRecentSummaries(env.oncall_investigator_db, 10));
     }
 
     return new Response("oncall-investigator: not yet built", { status: 200 });

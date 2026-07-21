@@ -1,3 +1,15 @@
+// Must match wrangler.toml's [[analytics_engine_datasets]] `dataset` value —
+// the AnalyticsEngineDataset binding type has no way to introspect its own
+// dataset name at runtime, and the SQL API has no notion of "the binding",
+// only the literal dataset name in the FROM clause. A prior version of this
+// file hardcoded "oncall_metrics" directly in the query; when the dataset
+// was later renamed to "oncall_metrics_v2" in wrangler.toml to escape
+// permanently-accumulated test residue, only the write path picked up the
+// change (writeDataPoint goes through the binding) — this read path kept
+// querying the old, still-polluted dataset until this constant was pulled
+// out and updated to match. Change both together from now on.
+const DATASET_NAME = "oncall_metrics_v2";
+
 export interface MetricsResult {
   p50LatencyMs: number;
   p95LatencyMs: number;
@@ -37,7 +49,7 @@ export async function queryMetrics(
       quantileExactWeighted(0.99)(double1, _sample_interval) AS p99,
       sum(if(blob1 = 'error', _sample_interval, 0)) / sum(_sample_interval) AS errorRate,
       sum(_sample_interval) AS requestCount
-    FROM oncall_metrics
+    FROM ${DATASET_NAME}
     WHERE index1 = '${service}' AND timestamp > NOW() - INTERVAL '${windowMinutes}' MINUTE
     FORMAT JSON
   `;

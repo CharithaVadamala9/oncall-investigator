@@ -19,6 +19,10 @@ class_name = "TrafficGenerator"
 name = "INVESTIGATOR"
 class_name = "Investigator"
 
+[[durable_objects.bindings]]
+name = "SUMMARY_AGENT"
+class_name = "SummaryAgent"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["TrafficGenerator"]
@@ -26,6 +30,10 @@ new_sqlite_classes = ["TrafficGenerator"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Investigator"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["SummaryAgent"]
 
 [[d1_databases]]
 binding = "oncall_investigator_db"
@@ -39,4 +47,4 @@ id = "c1636ea9af684926866f859a73c281ae"
 
 [[analytics_engine_datasets]]
 binding = "METRICS"
-dataset = "oncall_metrics"
+dataset = "oncall_metrics_v2"
