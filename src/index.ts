@@ -4,6 +4,7 @@ import { executeTool } from "./agent/tools";
 import { runChainOnce } from "./demo-app/chain";
 import { seedBaselines } from "./demo-app/seed-baselines";
 import { seedIncident } from "./demo-app/seed-incident";
+import { seedOutage } from "./demo-app/seed-outage";
 import { TrafficGenerator } from "./demo-app/traffic-generator";
 
 export { Investigator, TrafficGenerator };
@@ -32,6 +33,10 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/admin/seed-incident") {
       return Response.json(await seedIncident(env));
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/seed-outage") {
+      return Response.json(await seedOutage(env));
     }
 
     if (request.method === "POST" && url.pathname === "/admin/start-traffic") {
