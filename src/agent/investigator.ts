@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Agent, type Connection } from "agents";
+import { recordIncident } from "../storage/incidents";
 import { buildSystemPrompt } from "./prompt";
 import { executeTool, TOOL_SCHEMAS } from "./tools";
 
@@ -69,6 +70,11 @@ export class Investigator extends Agent<Env, InvestigatorState> {
             .map((block) => block.text)
             .join("\n");
           this.setState({ messages });
+          await recordIncident(this.env.oncall_investigator_db, {
+            timestamp: Date.now(),
+            symptom: message,
+            summary: answer,
+          });
           send(connection, { type: "answer", text: answer });
           return;
         }

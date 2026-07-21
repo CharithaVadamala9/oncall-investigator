@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getBaseline } from "../storage/baseline";
 import { getDeploys } from "../storage/deploys";
+import { searchIncidents } from "../storage/incidents";
 import { getLogs, listServices } from "../storage/logs";
 import { queryMetrics } from "../storage/metrics";
 
@@ -8,6 +9,8 @@ const DEFAULT_LOG_LIMIT = 20;
 const MAX_LOG_LIMIT = 50;
 const MAX_WINDOW_MINUTES = 1440;
 const SERVICE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const DEFAULT_INCIDENT_LIMIT = 5;
+const MAX_INCIDENT_LIMIT = 20;
 
 export const TOOL_SCHEMAS: Anthropic.Tool[] = [
   {
@@ -76,6 +79,25 @@ export const TOOL_SCHEMAS: Anthropic.Tool[] = [
         },
       },
       required: ["service", "window_minutes"],
+    },
+  },
+  {
+    name: "search_past_incidents",
+    description:
+      "Search past resolved investigations for similar symptoms. Useful context if this looks like something that's happened before — returns raw past reports, not a conclusion.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Optional keyword to filter by (matches against the reported symptom or resolution)",
+        },
+        limit: {
+          type: "integer",
+          description: `Max records to return (default ${DEFAULT_INCIDENT_LIMIT}, capped at ${MAX_INCIDENT_LIMIT})`,
+        },
+      },
+      required: [],
     },
   },
 ];
@@ -195,6 +217,24 @@ async function getMetricsTool(env: Env, input: GetMetricsInput) {
   return { service, windowMinutes: cappedWindow, ...result };
 }
 
+interface SearchPastIncidentsInput {
+  query?: unknown;
+  limit?: unknown;
+}
+
+async function searchPastIncidentsTool(env: Env, input: SearchPastIncidentsInput) {
+  const { query, limit } = input;
+  if (query !== undefined && typeof query !== "string") {
+    return { error: "query must be a string" };
+  }
+
+  const requestedLimit = isFiniteNumber(limit) ? limit : DEFAULT_INCIDENT_LIMIT;
+  const cappedLimit = Math.min(Math.max(Math.floor(requestedLimit), 1), MAX_INCIDENT_LIMIT);
+
+  const incidents = await searchIncidents(env.oncall_investigator_db, { query, limit: cappedLimit });
+  return { incidents };
+}
+
 export async function executeTool(name: string, input: unknown, env: Env): Promise<unknown> {
   const args = (input ?? {}) as Record<string, unknown>;
   try {
@@ -209,6 +249,8 @@ export async function executeTool(name: string, input: unknown, env: Env): Promi
         return await getBaselineTool(env, args);
       case "get_metrics":
         return await getMetricsTool(env, args);
+      case "search_past_incidents":
+        return await searchPastIncidentsTool(env, args);
       default:
         return { error: `unknown tool: ${name}` };
     }
