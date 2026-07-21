@@ -33,7 +33,8 @@ function escapeHtml(str) {
 
 function renderInline(text) {
   return escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") // must run before the italic pass below,
+    .replace(/\*(.+?)\*/g, "<em>$1</em>") // or stray ** pairs confuse the single-* match
     .replace(/`(.+?)`/g, "<code>$1</code>");
 }
 
