@@ -1,3 +1,4 @@
+import { getActiveAuthFault } from "../storage/fault-flag";
 import { insertLog } from "../storage/logs";
 import { handle as handleCheckout } from "./checkout-service";
 import type { HopResult } from "./payment-service";
@@ -12,6 +13,7 @@ const CLIENT_ERRORS: Array<{ statusCode: number; message: string }> = [
   { statusCode: 404, message: "rejected: resource not found" },
   { statusCode: 429, message: "rejected: rate limit exceeded" },
 ];
+const AUTH_ERROR: { statusCode: number; message: string } = CLIENT_ERRORS[1];
 
 function randomLatency(min: number, max: number): number {
   return Math.round(min + Math.random() * (max - min));
@@ -50,6 +52,25 @@ async function record(
 
 export async function handle(env: Env, traceId: string): Promise<HopResult> {
   const start = Date.now();
+
+  // A real incident that happens to be 4xx-shaped (e.g. a broken auth
+  // deploy), checked independently of and in addition to the constant
+  // background noise below. Deliberately tagged identically to a normal
+  // 401 rejection (same statusCode/level/errorType/message) — the only
+  // things that differ are the rate and the deploy correlation, which is
+  // exactly what should distinguish "real incident" from "background
+  // noise" here, not a different tag making it trivially filterable.
+  const authFault = await getActiveAuthFault(env.KV, SERVICE);
+  if (authFault && Math.random() < authFault.errorRate) {
+    await sleep(randomLatency(OVERHEAD_MIN_MS, OVERHEAD_MAX_MS));
+    const result: HopResult = {
+      statusCode: AUTH_ERROR.statusCode,
+      latencyMs: Date.now() - start,
+      level: "info",
+      errorType: "client_error",
+    };
+    return record(env, traceId, start, result, AUTH_ERROR.message);
+  }
 
   // Client-side rejections: background noise unrelated to the seeded
   // incident (bad input, expired auth, rate limiting). Short-circuits

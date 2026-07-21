@@ -2,6 +2,7 @@ import { getAgentByName, routeAgentRequest } from "agents";
 import { Investigator } from "./agent/investigator";
 import { executeTool } from "./agent/tools";
 import { runChainOnce } from "./demo-app/chain";
+import { seedAuthIncident } from "./demo-app/seed-auth-incident";
 import { seedBaselines } from "./demo-app/seed-baselines";
 import { seedIncident } from "./demo-app/seed-incident";
 import { seedOutage } from "./demo-app/seed-outage";
@@ -37,6 +38,10 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/admin/seed-outage") {
       return Response.json(await seedOutage(env));
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/seed-auth-incident") {
+      return Response.json(await seedAuthIncident(env));
     }
 
     if (request.method === "POST" && url.pathname === "/admin/start-traffic") {

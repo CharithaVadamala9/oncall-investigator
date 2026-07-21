@@ -60,3 +60,35 @@ export async function isOutageActive(kv: KVNamespace, service: string): Promise<
 export async function clearOutage(kv: KVNamespace, service: string): Promise<void> {
   await kv.delete(outageKey(service));
 }
+
+// A third distinct shape: an elevated rate of a *specific* client-error
+// code (e.g. a real auth-deploy bug spiking 401s), as opposed to setFault
+// (latency/error on a downstream call) or the outage flag above
+// (unreachable entirely). Checked in addition to, not instead of, the
+// constant low-rate background noise — an auth bug wouldn't suppress
+// unrelated normal client behavior like rate-limiting.
+export interface AuthFaultConfig {
+  errorRate: number;
+  until: number;
+}
+
+function authFaultKey(service: string): string {
+  return `auth-fault:${service}`;
+}
+
+export async function setAuthFault(
+  kv: KVNamespace,
+  service: string,
+  opts: { durationMs: number; errorRate: number },
+): Promise<AuthFaultConfig> {
+  const config: AuthFaultConfig = { errorRate: opts.errorRate, until: Date.now() + opts.durationMs };
+  await kv.put(authFaultKey(service), JSON.stringify(config));
+  return config;
+}
+
+export async function getActiveAuthFault(kv: KVNamespace, service: string): Promise<AuthFaultConfig | null> {
+  const raw = await kv.get(authFaultKey(service));
+  if (!raw) return null;
+  const config: AuthFaultConfig = JSON.parse(raw);
+  return config.until > Date.now() ? config : null;
+}
