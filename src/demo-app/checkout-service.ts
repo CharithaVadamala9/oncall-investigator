@@ -1,4 +1,4 @@
-import { isOutageActive } from "../storage/fault-flag";
+import { getActiveFault, isOutageActive } from "../storage/fault-flag";
 import { insertLog } from "../storage/logs";
 import { handle as handlePayment, type HopResult } from "./payment-service";
 
@@ -16,9 +16,57 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function record(
+  env: Env,
+  traceId: string,
+  start: number,
+  result: HopResult,
+  message: string,
+): Promise<HopResult> {
+  await insertLog(env.oncall_investigator_db, {
+    traceId,
+    service: SERVICE,
+    timestamp: start,
+    level: result.level,
+    statusCode: result.statusCode,
+    latencyMs: result.latencyMs,
+    errorType: result.errorType,
+    message,
+  });
+
+  env.METRICS.writeDataPoint({
+    indexes: [SERVICE],
+    blobs: [result.level],
+    doubles: [result.latencyMs, result.statusCode],
+  });
+
+  return result;
+}
+
 export async function handle(env: Env, traceId: string): Promise<HopResult> {
   const start = Date.now();
-  await sleep(randomLatency(OVERHEAD_MIN_MS, OVERHEAD_MAX_MS));
+
+  // checkout-service's own bug/regression — unrelated to payment-service
+  // entirely. When active, adds its own latency (in place of the normal
+  // small overhead) before ever calling payment-service, and can fail
+  // outright without calling it at all. errorType "internal_error" (not
+  // "downstream_*") mirrors the same label payment-service already uses
+  // for its own bugs — this service's fault is its own, not inherited.
+  const ownFault = await getActiveFault(env.KV, SERVICE);
+  if (ownFault) {
+    await sleep(ownFault.latencyMs);
+    if (Math.random() < ownFault.errorRate) {
+      const result: HopResult = {
+        statusCode: 500,
+        latencyMs: Date.now() - start,
+        level: "error",
+        errorType: "internal_error",
+      };
+      return record(env, traceId, start, result, "checkout failed (internal_error)");
+    }
+  } else {
+    await sleep(randomLatency(OVERHEAD_MIN_MS, OVERHEAD_MAX_MS));
+  }
 
   // Outage: payment-service is unreachable entirely (network partition,
   // crashed process, routing misconfiguration — not "slow", just gone).
@@ -32,25 +80,7 @@ export async function handle(env: Env, traceId: string): Promise<HopResult> {
       level: "error",
       errorType: "connection_refused",
     };
-
-    await insertLog(env.oncall_investigator_db, {
-      traceId,
-      service: SERVICE,
-      timestamp: start,
-      level: result.level,
-      statusCode: result.statusCode,
-      latencyMs: result.latencyMs,
-      errorType: result.errorType,
-      message: `checkout failed (${result.errorType}) — payment-service unreachable`,
-    });
-
-    env.METRICS.writeDataPoint({
-      indexes: [SERVICE],
-      blobs: [result.level],
-      doubles: [result.latencyMs, result.statusCode],
-    });
-
-    return result;
+    return record(env, traceId, start, result, `checkout failed (${result.errorType}) — payment-service unreachable`);
   }
 
   const paymentResult = await handlePayment(env, traceId);
@@ -65,22 +95,11 @@ export async function handle(env: Env, traceId: string): Promise<HopResult> {
   }
   result.latencyMs = Date.now() - start;
 
-  await insertLog(env.oncall_investigator_db, {
+  return record(
+    env,
     traceId,
-    service: SERVICE,
-    timestamp: start,
-    level: result.level,
-    statusCode: result.statusCode,
-    latencyMs: result.latencyMs,
-    errorType: result.errorType,
-    message: result.level === "error" ? `checkout failed (${result.errorType})` : "checkout completed",
-  });
-
-  env.METRICS.writeDataPoint({
-    indexes: [SERVICE],
-    blobs: [result.level],
-    doubles: [result.latencyMs, result.statusCode],
-  });
-
-  return result;
+    start,
+    result,
+    result.level === "error" ? `checkout failed (${result.errorType})` : "checkout completed",
+  );
 }

@@ -4,6 +4,7 @@ import { executeTool } from "./agent/tools";
 import { runChainOnce } from "./demo-app/chain";
 import { seedAuthIncident } from "./demo-app/seed-auth-incident";
 import { seedBaselines } from "./demo-app/seed-baselines";
+import { seedCheckoutIncident } from "./demo-app/seed-checkout-incident";
 import { seedIncident } from "./demo-app/seed-incident";
 import { seedOutage } from "./demo-app/seed-outage";
 import { TrafficGenerator } from "./demo-app/traffic-generator";
@@ -42,6 +43,10 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/admin/seed-auth-incident") {
       return Response.json(await seedAuthIncident(env));
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/seed-checkout-incident") {
+      return Response.json(await seedCheckoutIncident(env));
     }
 
     if (request.method === "POST" && url.pathname === "/admin/start-traffic") {
