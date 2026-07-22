@@ -166,3 +166,124 @@ form.addEventListener("submit", (event) => {
   input.value = "";
   setBusy(true);
 });
+
+// --- Weekly digest panel ---
+// A frontend-only addition on top of the existing /admin/generate-summary
+// and /admin/summaries routes — no new backend logic. SummaryAgent already
+// runs on its own 5-minute schedule once started, so the "new digest"
+// notification below is genuine: it fires when the background scheduler
+// produces something while the tab is open, not a fake alert.
+
+const digestBtn = document.getElementById("digestBtn");
+const digestOverlay = document.getElementById("digestOverlay");
+const digestPanel = document.getElementById("digestPanel");
+const digestClose = document.getElementById("digestClose");
+const digestGenerate = document.getElementById("digestGenerate");
+const digestContent = document.getElementById("digestContent");
+const digestHistory = document.getElementById("digestHistory");
+const toast = document.getElementById("toast");
+
+const LAST_SEEN_DIGEST_KEY = "investigator-last-seen-digest-id";
+const DIGEST_POLL_INTERVAL_MS = 30000;
+
+function getLastSeenDigestId() {
+  return Number(localStorage.getItem(LAST_SEEN_DIGEST_KEY) || 0);
+}
+
+function markDigestSeen(id) {
+  if (id) localStorage.setItem(LAST_SEEN_DIGEST_KEY, String(id));
+}
+
+function formatDigestMeta(count) {
+  return `${count} investigation${count === 1 ? "" : "s"} reviewed`;
+}
+
+function renderHistoryItem(summary) {
+  const when = new Date(summary.timestamp).toLocaleString();
+  return `
+    <details class="digest-item">
+      <summary>${escapeHtml(when)} — ${formatDigestMeta(summary.incidentCount)}</summary>
+      <div class="digest-item-body">${renderMarkdown(summary.summary)}</div>
+    </details>
+  `;
+}
+
+async function loadDigestHistory() {
+  const response = await fetch("/admin/summaries");
+  const summaries = await response.json();
+  digestHistory.innerHTML = summaries.length
+    ? summaries.map(renderHistoryItem).join("")
+    : '<p class="digest-empty">No digests yet.</p>';
+  if (summaries.length > 0) markDigestSeen(summaries[0].id);
+  return summaries;
+}
+
+function openDigestPanel() {
+  digestOverlay.classList.add("open");
+  digestPanel.classList.add("open");
+  loadDigestHistory().catch(() => {
+    digestHistory.innerHTML = '<p class="digest-error">Failed to load digest history.</p>';
+  });
+}
+
+function closeDigestPanel() {
+  digestOverlay.classList.remove("open");
+  digestPanel.classList.remove("open");
+}
+
+digestBtn.addEventListener("click", openDigestPanel);
+digestClose.addEventListener("click", closeDigestPanel);
+digestOverlay.addEventListener("click", closeDigestPanel);
+
+digestGenerate.addEventListener("click", async () => {
+  digestGenerate.disabled = true;
+  digestContent.innerHTML = '<p class="digest-loading">Generating…</p>';
+  try {
+    const response = await fetch("/admin/generate-summary", { method: "POST" });
+    const data = await response.json();
+    digestContent.innerHTML = `<div class="digest-meta">${formatDigestMeta(data.incidentCount)}</div>${renderMarkdown(data.summary)}`;
+    await loadDigestHistory();
+  } catch (err) {
+    digestContent.innerHTML = `<p class="digest-error">Failed to generate: ${escapeHtml(String(err))}</p>`;
+  } finally {
+    digestGenerate.disabled = false;
+  }
+});
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("visible");
+  toast.onclick = () => {
+    toast.classList.remove("visible");
+    openDigestPanel();
+  };
+  setTimeout(() => toast.classList.remove("visible"), 8000);
+}
+
+async function pollForNewDigest() {
+  try {
+    const response = await fetch("/admin/summaries");
+    const summaries = await response.json();
+    if (summaries.length === 0) return;
+    const latest = summaries[0];
+    if (latest.id > getLastSeenDigestId()) {
+      showToast(`New weekly digest available — ${formatDigestMeta(latest.incidentCount)}`);
+      markDigestSeen(latest.id);
+    }
+  } catch {
+    // best-effort — a failed poll just tries again next interval
+  }
+}
+
+// Seed "last seen" on first load so pre-existing digests don't trigger an
+// immediate toast — only digests generated *after* this page connected should.
+fetch("/admin/summaries")
+  .then((r) => r.json())
+  .then((summaries) => {
+    if (summaries.length > 0 && !localStorage.getItem(LAST_SEEN_DIGEST_KEY)) {
+      markDigestSeen(summaries[0].id);
+    }
+  })
+  .catch(() => {});
+
+setInterval(pollForNewDigest, DIGEST_POLL_INTERVAL_MS);

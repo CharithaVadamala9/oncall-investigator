@@ -121,18 +121,130 @@
     cursor: pointer;
   }
   button:disabled { opacity: 0.5; cursor: default; }
+
+  header { display: flex; align-items: center; }
+  .header-btn {
+    margin-left: auto;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+
+  .digest-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(420px, 100%);
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 11;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    overflow-y: auto;
+  }
+  .digest-panel.open { transform: translateX(0); }
+  .digest-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  .digest-panel-header h2 { font-size: 1.05rem; margin: 0; }
+  .icon-btn {
+    background: transparent;
+    color: var(--dim);
+    border: none;
+    padding: 0.2rem 0.5rem;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  #digestGenerate { align-self: flex-start; margin-bottom: 0.9rem; }
+  .digest-current {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+  }
+  .digest-meta { color: var(--dim); font-size: 0.78rem; margin-bottom: 0.5rem; }
+  .digest-loading, .digest-empty { color: var(--dim); font-style: italic; margin: 0; }
+  .digest-error { color: var(--error); margin: 0; }
+  .digest-panel h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); margin: 0 0 0.5rem; }
+  .digest-history { display: flex; flex-direction: column; gap: 0.4rem; }
+  .digest-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+  }
+  .digest-item summary { cursor: pointer; font-size: 0.83rem; color: var(--dim); }
+  .digest-item-body { font-size: 0.85rem; line-height: 1.5; margin-top: 0.5rem; }
+
+  .toast {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(120%);
+    background: var(--text);
+    color: var(--bg);
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    max-width: 90vw;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    z-index: 12;
+  }
+  .toast.visible { transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
   <header>
     On-Call Investigator
     <span class="status" id="status">connecting…</span>
+    <button type="button" id="digestBtn" class="header-btn">Weekly Digest</button>
   </header>
   <div id="transcript"></div>
   <form id="composer">
     <input type="text" id="input" placeholder="Describe the symptom…" autocomplete="off" />
     <button type="submit" id="send">Send</button>
   </form>
+
+  <div class="overlay" id="digestOverlay"></div>
+  <aside class="digest-panel" id="digestPanel" aria-label="Weekly digest">
+    <div class="digest-panel-header">
+      <h2>Weekly Digest</h2>
+      <button type="button" id="digestClose" class="icon-btn" aria-label="Close">&times;</button>
+    </div>
+    <button type="button" id="digestGenerate">Generate Now</button>
+    <div id="digestContent" class="digest-current"></div>
+    <h3>History</h3>
+    <div id="digestHistory" class="digest-history"></div>
+  </aside>
+  <div class="toast" id="toast"></div>
+
   <script src="chat.js"></script>
 </body>
 </html>
