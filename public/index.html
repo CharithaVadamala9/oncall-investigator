@@ -122,16 +122,18 @@
   }
   button:disabled { opacity: 0.5; cursor: default; }
 
-  header { display: flex; align-items: center; }
-  .header-btn {
-    margin-left: auto;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.82rem;
-    font-weight: 500;
-    background: var(--panel);
-    color: var(--text);
+  .pill-btn {
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
     border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--dim);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
   }
+  .pill-btn:hover { border-color: var(--accent); color: var(--text); }
 
   .overlay {
     position: fixed;
@@ -224,18 +226,18 @@
   <header>
     On-Call Investigator
     <span class="status" id="status">connecting…</span>
-    <button type="button" id="digestBtn" class="header-btn">Weekly Digest</button>
   </header>
   <div id="transcript"></div>
   <form id="composer">
     <input type="text" id="input" placeholder="Describe the symptom…" autocomplete="off" />
+    <button type="button" id="digestBtn" class="pill-btn">Weekly Report</button>
     <button type="submit" id="send">Send</button>
   </form>
 
   <div class="overlay" id="digestOverlay"></div>
-  <aside class="digest-panel" id="digestPanel" aria-label="Weekly digest">
+  <aside class="digest-panel" id="digestPanel" aria-label="Weekly report">
     <div class="digest-panel-header">
-      <h2>Weekly Digest</h2>
+      <h2>Weekly Report</h2>
       <button type="button" id="digestClose" class="icon-btn" aria-label="Close">&times;</button>
     </div>
     <button type="button" id="digestGenerate">Generate Now</button>
