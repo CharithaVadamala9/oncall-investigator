@@ -1,13 +1,7 @@
-// Must match wrangler.toml's [[analytics_engine_datasets]] `dataset` value —
-// the AnalyticsEngineDataset binding type has no way to introspect its own
-// dataset name at runtime, and the SQL API has no notion of "the binding",
-// only the literal dataset name in the FROM clause. A prior version of this
-// file hardcoded "oncall_metrics" directly in the query; when the dataset
-// was later renamed to "oncall_metrics_v2" in wrangler.toml to escape
-// permanently-accumulated test residue, only the write path picked up the
-// change (writeDataPoint goes through the binding) — this read path kept
-// querying the old, still-polluted dataset until this constant was pulled
-// out and updated to match. Change both together from now on.
+// Must match wrangler.toml's analytics_engine_datasets `dataset` value. The
+// binding has no way to introspect its own name at runtime, and the SQL API
+// only accepts a literal table name, so this is hand-synced rather than
+// derived — keep both in sync when renaming the dataset.
 const DATASET_NAME = "oncall_metrics_v2";
 
 export interface MetricsResult {
@@ -18,10 +12,9 @@ export interface MetricsResult {
   requestCount: number;
 }
 
-// ClickHouse's FORMAT JSON stringifies UInt64 columns (like sum() results)
-// to avoid precision loss, while Float64 columns (like quantiles) come back
-// as real JSON numbers — so this response is a genuine string/number mix,
-// confirmed against a live query rather than assumed from docs.
+// ClickHouse's FORMAT JSON stringifies UInt64 sums to avoid precision loss;
+// Float64 quantiles come back as real numbers — a genuine string/number
+// mix, not an inconsistency.
 interface AnalyticsEngineRow {
   p50: number | string | null;
   p95: number | string | null;
@@ -34,9 +27,9 @@ interface AnalyticsEngineResponse {
   data: AnalyticsEngineRow[];
 }
 
-// Caller (tools.ts) validates `service` against a strict pattern before this
-// runs — the value is interpolated directly into a raw SQL string because
-// the Analytics Engine SQL API takes plain-text SQL, not parameterized queries.
+// `service` is validated by the caller (tools.ts) before this runs — it's
+// interpolated directly into raw SQL since the AE SQL API takes plain text,
+// not parameterized queries.
 export async function queryMetrics(
   env: Env,
   service: string,

@@ -53,13 +53,10 @@ async function record(
 export async function handle(env: Env, traceId: string): Promise<HopResult> {
   const start = Date.now();
 
-  // A real incident that happens to be 4xx-shaped (e.g. a broken auth
-  // deploy), checked independently of and in addition to the constant
-  // background noise below. Deliberately tagged identically to a normal
-  // 401 rejection (same statusCode/level/errorType/message) — the only
-  // things that differ are the rate and the deploy correlation, which is
-  // exactly what should distinguish "real incident" from "background
-  // noise" here, not a different tag making it trivially filterable.
+  // A real incident that happens to be 4xx-shaped, checked in addition to
+  // the background noise below. Tagged identically to a normal rejection —
+  // only the rate and a deploy correlation differ, deliberately, so it
+  // can't be told apart from noise by tag alone.
   const authFault = await getActiveAuthFault(env.KV, SERVICE);
   if (authFault && Math.random() < authFault.errorRate) {
     await sleep(randomLatency(OVERHEAD_MIN_MS, OVERHEAD_MAX_MS));
@@ -72,11 +69,9 @@ export async function handle(env: Env, traceId: string): Promise<HopResult> {
     return record(env, traceId, start, result, AUTH_ERROR.message);
   }
 
-  // Client-side rejections: background noise unrelated to the seeded
-  // incident (bad input, expired auth, rate limiting). Short-circuits
-  // before checkout-service is ever called, so checkout/payment cannot be
-  // affected by construction — and it's tagged level "info" (not "error")
-  // so it never inflates infrastructure error-rate metrics.
+  // Background noise unrelated to any seeded incident. Short-circuits
+  // before checkout-service is called, so downstream services can't be
+  // affected — tagged level "info" so it never inflates error-rate metrics.
   if (Math.random() < CLIENT_ERROR_RATE) {
     const picked = CLIENT_ERRORS[Math.floor(Math.random() * CLIENT_ERRORS.length)];
     await sleep(randomLatency(OVERHEAD_MIN_MS, OVERHEAD_MAX_MS));

@@ -70,8 +70,8 @@ function renderBlock(lines) {
 
 // Small, dependency-free subset: headers, bold, inline code, bullet/numbered
 // lists, paragraphs. Not a full markdown parser — just enough for the shape
-// of answer Claude actually produces (seen across every test run in Phase 8).
-// Headers are checked per-line, not per-block, since Claude often writes
+// of answer Claude actually produces. Headers are checked per-line, not
+// per-block, since Claude often writes
 // "## Header" immediately followed by body text rather than its own
 // blank-line-separated block. Adjacent blocks of the same list type are
 // merged before rendering — Claude sometimes blank-line-separates list

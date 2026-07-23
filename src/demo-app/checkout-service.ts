@@ -46,12 +46,10 @@ async function record(
 export async function handle(env: Env, traceId: string): Promise<HopResult> {
   const start = Date.now();
 
-  // checkout-service's own bug/regression — unrelated to payment-service
-  // entirely. When active, adds its own latency (in place of the normal
-  // small overhead) before ever calling payment-service, and can fail
-  // outright without calling it at all. errorType "internal_error" (not
-  // "downstream_*") mirrors the same label payment-service already uses
-  // for its own bugs — this service's fault is its own, not inherited.
+  // checkout-service's own regression, unrelated to payment-service — can
+  // fail outright before ever calling it. errorType "internal_error" (not
+  // "downstream_*") mirrors payment-service's own-bug label: this fault is
+  // checkout's own, not inherited.
   const ownFault = await getActiveFault(env.KV, SERVICE);
   if (ownFault) {
     await sleep(ownFault.latencyMs);
@@ -68,11 +66,9 @@ export async function handle(env: Env, traceId: string): Promise<HopResult> {
     await sleep(randomLatency(OVERHEAD_MIN_MS, OVERHEAD_MAX_MS));
   }
 
-  // Outage: payment-service is unreachable entirely (network partition,
-  // crashed process, routing misconfiguration — not "slow", just gone).
-  // checkout-service never even attempts the call, so payment-service
-  // produces zero log rows for this request — a fast failure with an
-  // absence of downstream data, not a slow one with error data.
+  // payment-service unreachable entirely (not slow — gone). checkout never
+  // attempts the call, so payment-service logs nothing for this request:
+  // absence of data, not error data.
   if (await isOutageActive(env.KV, DOWNSTREAM)) {
     const result: HopResult = {
       statusCode: 503,

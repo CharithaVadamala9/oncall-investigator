@@ -31,15 +31,9 @@ export async function getActiveFault(kv: KVNamespace, service: string): Promise<
   return config.until > Date.now() ? config : null;
 }
 
-export async function clearFault(kv: KVNamespace, service: string): Promise<void> {
-  await kv.delete(key(service));
-}
-
-// A distinct flag from setFault/getActiveFault above: "this service is
-// unreachable" (checked by the *caller*, before it ever attempts the call)
-// rather than "this service is slow/erroring" (checked by the service
-// itself, after it's already been called). Binary — no latency/error-rate
-// parameters, since the point is the call never happens at all.
+// "Unreachable" — checked by the caller before attempting the call — as
+// opposed to setFault above, checked by the service itself after being
+// called. Binary: no latency/error-rate, since the call never happens.
 function outageKey(service: string): string {
   return `outage:${service}`;
 }
@@ -57,21 +51,14 @@ export async function isOutageActive(kv: KVNamespace, service: string): Promise<
   return config.until > Date.now();
 }
 
-export async function clearOutage(kv: KVNamespace, service: string): Promise<void> {
-  await kv.delete(outageKey(service));
-}
-
-// A third distinct shape: an elevated rate of a *specific* client-error
-// code (e.g. a real auth-deploy bug spiking 401s), as opposed to setFault
-// (latency/error on a downstream call) or the outage flag above
-// (unreachable entirely). Checked in addition to, not instead of, the
-// constant low-rate background noise — an auth bug wouldn't suppress
-// unrelated normal client behavior like rate-limiting.
 export interface AuthFaultConfig {
   errorRate: number;
   until: number;
 }
 
+// An elevated rate of one specific client-error code, layered on top of
+// (not instead of) the constant background noise in frontend.ts — an auth
+// bug wouldn't suppress unrelated normal client behavior like rate limiting.
 function authFaultKey(service: string): string {
   return `auth-fault:${service}`;
 }

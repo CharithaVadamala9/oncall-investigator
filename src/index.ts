@@ -13,72 +13,64 @@ import { getRecentSummaries } from "./storage/summaries";
 
 export { Investigator, SummaryAgent, TrafficGenerator };
 
-// Manual trigger kept alongside the scheduled traffic-generator for one-off runs.
+type RouteHandler = (request: Request, env: Env) => Promise<Response>;
+
+const routes: Record<string, RouteHandler> = {
+  // Manual trigger kept alongside the scheduled traffic generator for one-off runs.
+  "POST /debug/run-chain": async (_request, env) => Response.json(await runChainOnce(env)),
+
+  "POST /debug/tool": async (request, env) => {
+    const body = await request.json<{ name: string; input: unknown }>();
+    return Response.json(await executeTool(body.name, body.input, env));
+  },
+
+  "POST /admin/seed-baselines": async (_request, env) => {
+    await seedBaselines(env);
+    return Response.json({ ok: true });
+  },
+
+  "POST /admin/seed-incident": async (_request, env) => Response.json(await seedIncident(env)),
+  "POST /admin/seed-outage": async (_request, env) => Response.json(await seedOutage(env)),
+  "POST /admin/seed-auth-incident": async (_request, env) => Response.json(await seedAuthIncident(env)),
+  "POST /admin/seed-checkout-incident": async (_request, env) => Response.json(await seedCheckoutIncident(env)),
+
+  "POST /admin/start-traffic": async (_request, env) => {
+    const stub = await getAgentByName(env.TRAFFIC_GENERATOR, "singleton");
+    return Response.json(await stub.startTraffic());
+  },
+
+  "POST /admin/stop-traffic": async (_request, env) => {
+    const stub = await getAgentByName(env.TRAFFIC_GENERATOR, "singleton");
+    return Response.json(await stub.stopTraffic());
+  },
+
+  "POST /admin/start-summaries": async (_request, env) => {
+    const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
+    return Response.json(await stub.startSummaries());
+  },
+
+  "POST /admin/stop-summaries": async (_request, env) => {
+    const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
+    return Response.json(await stub.stopSummaries());
+  },
+
+  "POST /admin/generate-summary": async (_request, env) => {
+    const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
+    return Response.json(await stub.generateNow());
+  },
+
+  "GET /admin/summaries": async (_request, env) =>
+    Response.json(await getRecentSummaries(env.oncall_investigator_db, 10)),
+};
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const agentResponse = await routeAgentRequest(request, env);
     if (agentResponse) return agentResponse;
 
     const url = new URL(request.url);
-
-    if (url.pathname === "/debug/run-chain") {
-      return Response.json(await runChainOnce(env));
-    }
-
-    if (request.method === "POST" && url.pathname === "/debug/tool") {
-      const body = await request.json<{ name: string; input: unknown }>();
-      return Response.json(await executeTool(body.name, body.input, env));
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/seed-baselines") {
-      await seedBaselines(env);
-      return Response.json({ ok: true });
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/seed-incident") {
-      return Response.json(await seedIncident(env));
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/seed-outage") {
-      return Response.json(await seedOutage(env));
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/seed-auth-incident") {
-      return Response.json(await seedAuthIncident(env));
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/seed-checkout-incident") {
-      return Response.json(await seedCheckoutIncident(env));
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/start-traffic") {
-      const stub = await getAgentByName(env.TRAFFIC_GENERATOR, "singleton");
-      return Response.json(await stub.startTraffic());
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/stop-traffic") {
-      const stub = await getAgentByName(env.TRAFFIC_GENERATOR, "singleton");
-      return Response.json(await stub.stopTraffic());
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/start-summaries") {
-      const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
-      return Response.json(await stub.startSummaries());
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/stop-summaries") {
-      const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
-      return Response.json(await stub.stopSummaries());
-    }
-
-    if (request.method === "POST" && url.pathname === "/admin/generate-summary") {
-      const stub = await getAgentByName(env.SUMMARY_AGENT, "singleton");
-      return Response.json(await stub.generateNow());
-    }
-
-    if (url.pathname === "/admin/summaries") {
-      return Response.json(await getRecentSummaries(env.oncall_investigator_db, 10));
-    }
+    const handler = routes[`${request.method} ${url.pathname}`];
+    if (handler) return handler(request, env);
 
     return new Response("oncall-investigator: not yet built", { status: 200 });
   },
